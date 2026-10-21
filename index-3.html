@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>QueueDesk – Service Centre Ticketing</title>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+--bg:#f3f1ea;--surface:#fff;--ink:#1b2a2f;--muted:#5f6f73;--line:#d9d5c7;--accent:#0f6b5c;--accent-ink:#fff;--hot:#e8a317;}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#10191b;--surface:#18262a;--ink:#eef2ef;--muted:#9fb0b2;--line:#2c3e42;--accent:#3fc1a8;--accent-ink:#06211c;--hot:#f0b53a;}}
+:root[data-theme="dark"]{--bg:#10191b;--surface:#18262a;--ink:#eef2ef;--muted:#9fb0b2;--line:#2c3e42;--accent:#3fc1a8;--accent-ink:#06211c;--hot:#f0b53a;}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:inherit}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 "Trebuchet MS","Segoe UI",system-ui,sans-serif}
+main{max-width:760px;margin:0 auto;padding:20px 16px 48px}
+h1{font:800 1.7rem/1.1 "Georgia","Times New Roman",serif;margin:8px 0 4px}
+p.sub{margin:0 0 20px;color:var(--muted)}
+.board{background:var(--accent);color:var(--accent-ink);border-radius:14px;padding:20px;display:flex;justify-content:space-between;align-items:center;gap:12px}
+.board small{display:block;opacity:.8}
+.board .num{font:800 3.4rem/1 "Georgia",serif;letter-spacing:.02em}
+.board .who{font-size:1.05rem;font-weight:700}
+button{font:inherit;font-weight:700;border:0;border-radius:10px;padding:12px 16px;cursor:pointer;background:var(--ink);color:var(--bg)}
+button.go{background:var(--hot);color:#1b1b1b}
+button:disabled{opacity:.4;cursor:not-allowed}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--hot);outline-offset:2px}
+section{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;margin-top:16px}
+h2{font-size:1.05rem;margin:0 0 12px}
+form{display:grid;gap:10px;grid-template-columns:1fr}
+@media(min-width:560px){form{grid-template-columns:1fr 1fr auto;align-items:end}}
+label{font-size:.85rem;color:var(--muted);display:grid;gap:4px}
+input,select{font:inherit;padding:11px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);width:100%}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:16px}
+.stats div{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px;text-align:center}
+.stats b{display:block;font:800 1.5rem/1.2 "Georgia",serif}
+.stats span{font-size:.8rem;color:var(--muted)}
+.pipe{display:flex;gap:8px;overflow-x:auto;padding:4px 0 8px}
+.tk{flex:0 0 auto;border:2px dashed var(--line);border-radius:10px;padding:8px 12px;text-align:center;min-width:84px}
+.tk.front{border:2px solid var(--hot)}
+.tk b{display:block;font-family:Georgia,serif}
+.ends{display:flex;justify-content:space-between;font-size:.8rem;color:var(--muted)}
+ol{list-style:none;margin:0;padding:0}
+li{display:flex;justify-content:space-between;gap:8px;padding:10px 0;border-bottom:1px solid var(--line)}
+li:last-child{border:0}
+li em{color:var(--muted);font-style:normal;font-size:.85rem}
+.empty{color:var(--muted);margin:0}
+.msg{margin:10px 0 0;font-size:.9rem;color:var(--muted);min-height:1.3em}
+.link{background:none;color:var(--muted);padding:4px 0;font-weight:400;text-decoration:underline}
+</style>
+</head>
+<body>
+<main>
+<h1>QueueDesk</h1>
+<p class="sub">A first-come, first-served ticket system for a customer service centre. Built on a FIFO queue.</p>
+
+<div class="board" aria-live="polite">
+  <div><small>Now serving</small><div class="num" id="nowNum">—</div></div>
+  <div style="text-align:right"><div class="who" id="nowWho">No one yet</div><small id="nowSvc"></small></div>
+</div>
+
+<section>
+  <h2>Take a ticket (enqueue)</h2>
+  <form id="f">
+    <label>Customer name<input id="name" required maxlength="40" autocomplete="off" placeholder="e.g. Ama Mensah"></label>
+    <label>Service<select id="svc"><option>SIM replacement</option><option>Mobile money</option><option>Data bundle issue</option><option>New line</option></select></label>
+    <button type="submit">Get ticket</button>
+  </form>
+  <p class="msg" id="msg"></p>
+</section>
+
+<section>
+  <h2>Counter (dequeue)</h2>
+  <button class="go" id="next">Call next customer</button>
+  <button class="link" id="reset" type="button">Reset demo</button>
+</section>
+
+<div class="stats">
+  <div><b id="sWait">0</b><span>Waiting</span></div>
+  <div><b id="sDone">0</b><span>Served</span></div>
+  <div><b id="sAvg">0m</b><span>Avg wait</span></div>
+</div>
+
+<section>
+  <h2>The queue, front to rear</h2>
+  <div class="pipe" id="pipe"></div>
+  <div class="ends"><span>Front (next out)</span><span>Rear (newest in)</span></div>
+  <ol id="list"></ol>
+</section>
+</main>
+
+<script>
+// FIFO queue: enqueue at the rear, dequeue from the front, peek at the front.
+class Queue{
+  constructor(items){this.items=items||[]}
+  enqueue(x){this.items.push(x)}
+  dequeue(){return this.items.shift()}
+  peek(){return this.items[0]}
+  size(){return this.items.length}
+  isEmpty(){return this.items.length===0}
+}
+const KEY="queuedesk-v1";
+let state={q:[],counter:0,serving:null,served:0,waitTotal:0};
+try{const s=localStorage.getItem(KEY);if(s)state=JSON.parse(s)}catch(e){}
+const queue=new Queue(state.q);
+const $=id=>document.getElementById(id);
+const save=()=>{state.q=queue.items;try{localStorage.setItem(KEY,JSON.stringify(state))}catch(e){}};
+const label=n=>"A"+String(n).padStart(3,"0");
+const mins=ms=>Math.max(0,Math.round(ms/60000));
+
+function render(){
+  $("nowNum").textContent=state.serving?label(state.serving.n):"—";
+  $("nowWho").textContent=state.serving?state.serving.name:"No one yet";
+  $("nowSvc").textContent=state.serving?state.serving.svc:"";
+  $("sWait").textContent=queue.size();
+  $("sDone").textContent=state.served;
+  $("sAvg").textContent=(state.served?Math.round(state.waitTotal/state.served):0)+"m";
+  $("next").disabled=queue.isEmpty();
+  const pipe=$("pipe"),list=$("list");
+  pipe.innerHTML="";list.innerHTML="";
+  if(queue.isEmpty()){pipe.innerHTML='<p class="empty">Queue is empty. Take a ticket to join.</p>';return}
+  queue.items.forEach((t,i)=>{
+    const d=document.createElement("div");d.className="tk"+(i===0?" front":"");
+    d.innerHTML="<b></b><small></small>";d.firstChild.textContent=label(t.n);d.lastChild.textContent=t.name.split(" ")[0];
+    pipe.appendChild(d);
+    const li=document.createElement("li");
+    li.innerHTML="<span></span><em></em>";
+    li.firstChild.textContent=label(t.n)+" · "+t.name;
+    li.lastChild.textContent=t.svc+" · "+(i===0?"next":i+" ahead");
+    list.appendChild(li);
+  });
+}
+$("f").addEventListener("submit",e=>{
+  e.preventDefault();
+  const name=$("name").value.trim();if(!name)return;
+  state.counter++;
+  const t={n:state.counter,name,svc:$("svc").value,at:Date.now()};
+  queue.enqueue(t);save();
+  $("msg").textContent="Ticket "+label(t.n)+" issued. "+(queue.size()-1)+" ahead of you.";
+  $("name").value="";render();
+});
+$("next").addEventListener("click",()=>{
+  if(queue.isEmpty())return;
+  const t=queue.dequeue();
+  state.serving=t;state.served++;state.waitTotal+=mins(Date.now()-t.at);
+  save();$("msg").textContent="";render();
+});
+$("reset").addEventListener("click",()=>{
+  queue.items=[];state={q:queue.items,counter:0,serving:null,served:0,waitTotal:0};save();$("msg").textContent="Demo reset.";render();
+});
+render();
+</script>
+</body>
+</html>
